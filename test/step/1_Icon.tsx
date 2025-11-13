@@ -53,6 +53,14 @@ import {
   aiQuestionPromptKeys_Korean,
 } from "../constants/upload";
 import SaveNameDialog from "../components/upload/SaveNameDialog";
+import { 
+
+  Settings, 
+
+  Quiz, 
+
+} from "@mui/icons-material";
+
 
 const steps = ["파일 업로드", "요약 설정", "요약 생성", "문제 설정", "문제 생성"];
 
@@ -71,7 +79,13 @@ const shimmer = keyframes`
   0% { background-position: -1000px 0; }
   100% { background-position: 1000px 0; }
 `;
-
+const stepIcons = [
+  <CloudUpload sx={{ fontSize: 28 }} />,
+  <Settings sx={{ fontSize: 28 }} />,
+  <AutoAwesome sx={{ fontSize: 28 }} />,
+  <Quiz sx={{ fontSize: 28 }} />,
+  <CheckCircle sx={{ fontSize: 28 }} />
+];
 // 파티클 로딩 컴포넌트 - 블루 테마
 const ParticleLoading = ({ message }: { message: string }) => {
   return (
@@ -692,22 +706,32 @@ export default function UploadPage() {
             }}
           >
             <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label) => (
+              {steps.map((label, index) => (
                 <Step key={label}>
                   <StepLabel
+                    StepIconComponent={() => (
+                      <Avatar
+                        sx={{
+                          width: 50,
+                          height: 50,
+                          background: 
+                            index < activeStep 
+                              ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" 
+                              : index === activeStep
+                              ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)"
+                              : "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%)",
+                          transition: "all 0.3s ease",
+                          color: index <= activeStep ? "white" : "#9ca3af",
+                        }}
+                      >
+                        {stepIcons[index]}
+                      </Avatar>
+                    )}
                     sx={{
                       "& .MuiStepLabel-label": {
-                        fontSize: "1.1rem",
+                        fontSize: "1rem",
                         fontWeight: 600,
-                      },
-                      "& .MuiStepIcon-root": {
-                        color: "#93c5fd", // 파란색
-                      },
-                      "& .MuiStepIcon-root.Mui-active": {
-                        color: "#3b82f6", // 진한 파란색
-                      },
-                      "& .MuiStepIcon-root.Mui-completed": {
-                        color: "#2563eb", // 더 진한 파란색
+                        mt: 1,
                       },
                     }}
                   >

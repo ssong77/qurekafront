@@ -53,6 +53,14 @@ import {
   aiQuestionPromptKeys_Korean,
 } from "../constants/upload";
 import SaveNameDialog from "../components/upload/SaveNameDialog";
+import { 
+
+  Settings, 
+
+  Quiz, 
+
+} from "@mui/icons-material";
+
 
 const steps = ["파일 업로드", "요약 설정", "요약 생성", "문제 설정", "문제 생성"];
 
@@ -71,7 +79,13 @@ const shimmer = keyframes`
   0% { background-position: -1000px 0; }
   100% { background-position: 1000px 0; }
 `;
-
+const stepIcons = [
+  <CloudUpload sx={{ fontSize: 28 }} />,
+  <Settings sx={{ fontSize: 28 }} />,
+  <AutoAwesome sx={{ fontSize: 28 }} />,
+  <Quiz sx={{ fontSize: 28 }} />,
+  <CheckCircle sx={{ fontSize: 28 }} />
+];
 // 파티클 로딩 컴포넌트 - 블루 테마
 const ParticleLoading = ({ message }: { message: string }) => {
   return (
@@ -691,31 +705,60 @@ export default function UploadPage() {
               border: "1px solid rgba(59, 130, 246, 0.1)", // 파란색 테두리
             }}
           >
-            <Stepper activeStep={activeStep} alternativeLabel>
-              {steps.map((label) => (
-                <Step key={label}>
-                  <StepLabel
-                    sx={{
-                      "& .MuiStepLabel-label": {
-                        fontSize: "1.1rem",
-                        fontWeight: 600,
-                      },
-                      "& .MuiStepIcon-root": {
-                        color: "#93c5fd", // 파란색
-                      },
-                      "& .MuiStepIcon-root.Mui-active": {
-                        color: "#3b82f6", // 진한 파란색
-                      },
-                      "& .MuiStepIcon-root.Mui-completed": {
-                        color: "#2563eb", // 더 진한 파란색
-                      },
-                    }}
-                  >
-                    {label}
-                  </StepLabel>
-                </Step>
-              ))}
-            </Stepper>
+            <Box sx={{ position: 'relative', mb: 4 }}>
+  {/* 프로그레스 바 */}
+  <Box
+    sx={{
+      height: 8,
+      bgcolor: '#e5e7eb',
+      borderRadius: 4,
+      overflow: 'hidden',
+      mb: 3,
+    }}
+  >
+    <Box
+      sx={{
+        height: '100%',
+        width: `${(activeStep / (steps.length - 1)) * 100}%`,
+        background: 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)',
+        transition: 'width 0.5s ease',
+        borderRadius: 4,
+      }}
+    />
+  </Box>
+  
+  {/* 도트 네비게이션 */}
+  <Stack direction="row" justifyContent="space-between" sx={{ px: 2 }}>
+    {steps.map((label, index) => (
+      <Box key={label} sx={{ textAlign: 'center', flex: 1 }}>
+        <Box
+          sx={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            bgcolor: 
+              index <= activeStep ? '#3b82f6' : '#e5e7eb',
+            mx: 'auto',
+            mb: 1,
+            transition: 'all 0.3s ease',
+            border: index === activeStep ? '3px solid #93c5fd' : 'none',
+            transform: index === activeStep ? 'scale(1.3)' : 'scale(1)',
+          }}
+        />
+        <Typography
+          variant="caption"
+          sx={{
+            color: index <= activeStep ? '#1e40af' : '#9ca3af',
+            fontWeight: index === activeStep ? 700 : 500,
+            fontSize: '0.75rem',
+          }}
+        >
+          {label}
+        </Typography>
+      </Box>
+    ))}
+  </Stack>
+</Box>
           </Paper>
 
           <Box sx={{ minHeight: 500, mb: 4 }}>
