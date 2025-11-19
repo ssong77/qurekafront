@@ -397,331 +397,78 @@ export default function QuestionSolver({ questionItem, onClose }: QuestionSolver
   }
 
   return (
-    <Box sx={{ bgcolor: '#f5f7fa', minHeight: '100vh' }}>
-      {/* 헤더 */}
-      <Box 
-        sx={{ 
-          bgcolor: 'white', 
-          borderBottom: '2px solid #e8edf5', 
-          position: 'sticky', 
-          top: 0, 
-          zIndex: 100,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
-        }}
-      >
-        <Box 
-          sx={{ 
-            maxWidth: 900, 
-            mx: 'auto', 
-            py: 3, 
-            px: 4, 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center' 
-          }}
-        >
-          {/* 좌측 제목 영역 */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Typography 
-              variant="h5" 
-              sx={{ 
-                color: '#1e293b', 
-                fontWeight: 700,
-                fontSize: '1.5rem',
-                letterSpacing: '-0.02em'
-              }}
-            >
-              문제 풀이
-            </Typography>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                color: '#64748b',
-                fontSize: '0.9rem',
-                fontWeight: 500
-              }}
-            >
-              {questionItem.displayType}
-            </Typography>
-          </Box>
-
-          {/* 우측 버튼 영역 */}
-          <Button 
-            onClick={onClose}
-            variant="outlined"
-            sx={{ 
-              textTransform: 'none', 
-              color: '#6366f1', 
-              borderColor: '#6366f1',
-              fontWeight: 600,
-              fontSize: '1rem',
-              px: 3,
-              py: 1,
-              borderRadius: 2,
-              '&:hover': {
-                borderColor: '#4f46e5',
-                bgcolor: 'rgba(99, 102, 241, 0.04)'
-              }
-            }}
-          >
-            목록으로
-          </Button>
-        </Box>
-        
-        {/* 프로그레스 바 */}
-        <Box sx={{ maxWidth: 900, mx: 'auto', px: 4, pb: 2 }}>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                color: '#64748b', 
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                minWidth: 'fit-content'
-              }}
-            >
-              진행률
-            </Typography>
-            <Box sx={{ flex: 1, display: 'flex', gap: 1 }}>
-              {Array.from({ length: parsedData.questions.length }).map((_, i) => (
-                <Box 
-                  key={i} 
-                  sx={{ 
-                    flex: 1, 
-                    height: 8, 
-                    bgcolor: i <= currentQuestionIndex ? '#6366f1' : '#e2e8f0', 
-                    borderRadius: 4,
-                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: i === currentQuestionIndex ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none'
-                  }} 
-                />
-              ))}
-            </Box>
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                color: '#64748b', 
-                fontWeight: 600,
-                fontSize: '0.875rem',
-                minWidth: 'fit-content'
-              }}
-            >
-              {currentQuestionIndex + 1} / {parsedData.questions.length}
-            </Typography>
-          </Box>
-        </Box>
+    <Box sx={{ mt: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <Button startIcon={<ArrowBackIcon />} onClick={onClose}>
+          목록으로 돌아가기
+        </Button>
+        <Typography variant="h4" sx={{ ml: 2, flexGrow: 1 }}>
+          문제 풀기
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          {currentQuestionIndex + 1} / {parsedData.questions.length}
+        </Typography>
       </Box>
 
-      {/* 메인 컨텐츠 */}
-      <Box sx={{ maxWidth: 800, mx: 'auto', py: 6, px: 4 }}>
-        {/* 문제 카드 */}
-        <Paper 
-          elevation={0}
-          sx={{ 
-            p: 5, 
-            borderRadius: 4, 
-            bgcolor: 'white', 
-            mb: 5,
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)'
-          }}
-        >
-          {/* 문제 번호 표시 (인라인) */}
-          <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box 
-              sx={{ 
-                px: 2.5,
-                py: 1,
-                bgcolor: '#f1f5f9',
-                borderRadius: 2,
-                border: '2px solid #6366f1'
-              }}
-            >
-              <Typography 
-                variant="h6" 
-                fontWeight={700} 
-                sx={{ 
-                  color: '#6366f1',
-                  fontSize: '1.1rem'
-                }}
-              >
-                Q{currentQuestionIndex + 1}
-              </Typography>
-            </Box>
-            <Divider sx={{ flex: 1 }} />
-          </Box>
+      <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+          파일명: {questionItem.name}
+        </Typography>
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          문제 유형: {questionItem.displayType}
+        </Typography>
+        <Divider sx={{ my: 2 }} />
 
-          {renderQuestionComponent()}
-        </Paper>
+        {renderQuestionComponent()}
 
-        {/* 네비게이션 버튼 */}
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center', 
-            gap: 3,
-            flexWrap: 'wrap'
-          }}
-        >
-          {/* 이전 버튼 */}
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
           <Button 
-            variant="outlined"
-            onClick={handlePrevQuestion} 
-            disabled={currentQuestionIndex === 0} 
-            sx={{ 
-              px: 5, 
-              py: 1.75, 
-              borderRadius: 3, 
-              textTransform: 'none', 
-              fontWeight: 600,
-              fontSize: '1rem',
-              borderColor: '#cbd5e1',
-              color: '#64748b',
-              borderWidth: 2,
-              '&:hover': {
-                borderColor: '#94a3b8',
-                bgcolor: '#f8fafc',
-                borderWidth: 2
-              },
-              '&:disabled': {
-                borderColor: '#e2e8f0',
-                color: '#cbd5e1'
-              }
-            }}
+            variant="outlined" 
+            onClick={handlePrevQuestion}
+            disabled={currentQuestionIndex === 0}
           >
-            ← 이전 문제
+            이전 문제
           </Button>
-
-          {/* 중앙 액션 버튼 */}
+          
           {!showResult ? (
             <Button 
               variant="contained" 
-              onClick={handleCheckResult} 
-              disabled={isCheckButtonDisabled} 
-              sx={{ 
-                px: 6, 
-                py: 2, 
-                borderRadius: 3, 
-                textTransform: 'none', 
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                bgcolor: '#6366f1',
-                boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)',
-                '&:hover': {
-                  bgcolor: '#4f46e5',
-                  boxShadow: '0 6px 24px rgba(99, 102, 241, 0.4)'
-                },
-                '&:disabled': {
-                  bgcolor: '#cbd5e1',
-                  boxShadow: 'none'
-                }
-              }}
+              color="primary" 
+              onClick={handleCheckResult}
+              disabled={isCheckButtonDisabled}
             >
               정답 확인
             </Button>
           ) : (
             <Button 
               variant="contained" 
-              onClick={handleNextQuestion} 
-              disabled={currentQuestionIndex === parsedData.questions.length - 1} 
-              sx={{ 
-                px: 6, 
-                py: 2, 
-                borderRadius: 3, 
-                textTransform: 'none', 
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                bgcolor: '#10b981',
-                boxShadow: '0 4px 16px rgba(16, 185, 129, 0.3)',
-                '&:hover': {
-                  bgcolor: '#059669',
-                  boxShadow: '0 6px 24px rgba(16, 185, 129, 0.4)'
-                },
-                '&:disabled': {
-                  bgcolor: '#cbd5e1',
-                  boxShadow: 'none'
-                }
-              }}
+              color="primary" 
+              onClick={handleNextQuestion}
+              disabled={currentQuestionIndex === parsedData.questions.length - 1}
             >
-              다음 문제 →
+              다음 문제
             </Button>
           )}
-
-          {/* 다음 버튼 (플레이스홀더) */}
-          <Box sx={{ width: 140 }} />
         </Box>
-      </Box>
+      </Paper>
 
-      {/* 결과 표시 */}
       {showResult && (
-        <Box sx={{ maxWidth: 800, mx: 'auto', px: 4, pb: 6 }}>
-          <Paper 
-            elevation={0}
-            sx={{ 
-              p: 5, 
-              bgcolor: isCorrect ? '#f0fdf4' : '#fef2f2', 
-              borderRadius: 4, 
-              border: `2px solid ${isCorrect ? '#10b981' : '#ef4444'}`,
-              boxShadow: isCorrect 
-                ? '0 4px 24px rgba(16, 185, 129, 0.15)' 
-                : '0 4px 24px rgba(239, 68, 68, 0.15)'
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-              <Box 
-                sx={{ 
-                  width: 48, 
-                  height: 48, 
-                  borderRadius: '50%',
-                  bgcolor: isCorrect ? '#10b981' : '#ef4444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.5rem'
-                }}
-              >
-                {isCorrect ? '✓' : '✗'}
-              </Box>
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ 
-                  color: isCorrect ? '#047857' : '#dc2626',
-                  fontSize: '1.5rem'
-                }}
-              >
-                {isCorrect ? '정답입니다!' : '오답입니다'}
-              </Typography>
-            </Box>
-            
-            <Divider sx={{ my: 3, borderColor: isCorrect ? '#86efac' : '#fca5a5' }} />
-            
-            <Box>
-              <Typography 
-                variant="subtitle2" 
-                sx={{ 
-                  color: isCorrect ? '#065f46' : '#991b1b',
-                  fontWeight: 700,
-                  mb: 2,
-                  fontSize: '1rem'
-                }}
-              >
+        <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 2, bgcolor: isCorrect ? 'success.main' : 'error.main' }}>
+          <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+            {isCorrect ? '정답입니다!' : '오답입니다!'}
+          </Typography>
+          
+          <Card sx={{ bgcolor: 'background.paper' }}>
+            <CardContent>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                 해설
               </Typography>
-              <Typography 
-                variant="body1" 
-                sx={{ 
-                  lineHeight: 1.8,
-                  fontSize: '1.05rem',
-                  color: isCorrect ? '#047857' : '#dc2626'
-                }}
-              >
-                {currentQuestion.explanation || '해설이 제공되지 않았습니다.'}
+              <Typography variant="body1">
+                {currentQuestion.explanation || '이 문제에 대한 해설이 없습니다.'}
               </Typography>
-            </Box>
-          </Paper>
-        </Box>
+            </CardContent>
+          </Card>
+        </Paper>
       )}
     </Box>
   );
