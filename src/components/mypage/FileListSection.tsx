@@ -85,7 +85,7 @@ export default function FileListSection({
                     {item.name}
                   </Typography>
                 </TableCell>
-                <TableCell align="center">
+                <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                   <Typography variant="body2">{item.createdAt}</Typography>
                 </TableCell>
                 <TableCell align="center">

@@ -26,6 +26,7 @@ import {
   AccountCircle,
   CheckCircleOutline,
   Close,
+  Check,
 } from "@mui/icons-material";
 import Header from "../components/Header";
 import PageNavigator from "../components/common/PageNavigator";
@@ -44,6 +45,7 @@ import { useUploadState } from "../hooks/useUploadState";
 import { useUploadHandlers } from "../hooks/useUploadHandlers";
 import { DbSummaryPromptKey_Korean } from "../types/upload";
 import { useNavigate } from "react-router-dom";
+import NavigationBlocker from "../components/upload/NavigationBlocker";
 
 // 단계 애니메이션
 const float = keyframes`
@@ -166,6 +168,9 @@ export default function UploadPage() {
   const handlers = useUploadHandlers(state);
   const navigate = useNavigate();
 
+  // 생성 중인지 확인
+  const isGenerating = state.loadingSum || state.loadingQ;
+
   // 파일 업로드 핸들러
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
@@ -176,6 +181,7 @@ export default function UploadPage() {
     }
     state.setFile(f);
     state.setFileName(f.name);
+    handlers.markStepCompleted(0); // 파일 업로드 완료 표시
     state.setActiveStep(1);
   };
 
@@ -205,20 +211,49 @@ export default function UploadPage() {
     if (!handlers.validateFile(droppedFile)) return;
     state.setFile(droppedFile);
     state.setFileName(droppedFile.name);
+    handlers.markStepCompleted(0); // 파일 업로드 완료 표시
     state.setActiveStep(1);
+  };
+
+  // 단계 클릭 핸들러 수정 - 생성 중일 때 차단
+  const handleStepClick = (step: number) => {
+    // 생성 중이면 단계 이동 불가
+    if (isGenerating) {
+      return;
+    }
+    // 완료된 단계만 클릭 가능
+    if (state.completedSteps.has(step)) {
+      state.setActiveStep(step);
+    }
   };
 
   // 네비게이션 핸들러
   const handleNext = () => {
     if (state.mode === 'summary') {
-      if (state.activeStep === 1 && !state.summaryText) { state.setActiveStep(2); handlers.handleGenerateSummary(); }
-      else if (state.activeStep === 3 && !state.questionText) { state.setActiveStep(4); handlers.handleGenerateQuestion(); }
+      if (state.activeStep === 1 && !state.summaryText) { 
+        handlers.markStepCompleted(1); // 요약 설정 완료 표시
+        state.setActiveStep(2); 
+        handlers.handleGenerateSummary(); 
+      }
+      else if (state.activeStep === 3 && !state.questionText) { 
+        handlers.markStepCompleted(3); // 문제 설정 완료 표시
+        state.setActiveStep(4); 
+        handlers.handleGenerateQuestion(); 
+      }
       else state.setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
     } else if (state.mode === 'question' && state.questionSource === 'upload') {
-      if (state.activeStep === 1 && !state.questionText) { state.setActiveStep(2); handlers.handleGenerateQuestionFromFile(); }
+      if (state.activeStep === 1 && !state.questionText) { 
+        handlers.markStepCompleted(1); // 문제 설정 완료 표시
+        state.setActiveStep(2); 
+        handlers.handleGenerateQuestionFromFile(); 
+      }
       else state.setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
     } else if (state.mode === 'question' && state.questionSource === 'saved') {
-      if (state.activeStep === 1 && !state.questionText) { state.setActiveStep(2); handlers.handleGenerateQuestion(); }
+      if (state.activeStep === 1 && !state.questionText) { 
+        handlers.markStepCompleted(1); // 문제 설정 완료 표시
+        state.setActiveStep(2); 
+        handlers.handleGenerateQuestion(); 
+      }
       else state.setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
     }
   };
@@ -241,20 +276,44 @@ export default function UploadPage() {
     }
   };
 
-  // 재시도/재생성 핸들러
+  // 재생성 핸들러 수정 - 바로 재생성하도록 변경
   const handleRegenerate = (type: 'summary' | 'question') => {
-    if (type === 'summary') { state.setSummaryText(''); state.setActiveStep(1); }
+    if (type === 'summary') { 
+      state.setSummaryText(''); 
+      state.setSummaryError(false);
+      state.setActiveStep(2); // 생성 화면으로 이동
+      handlers.handleGenerateSummary(); // 바로 요약 생성
+    }
     else {
-      state.setQuestionText(''); state.setParsedQuestions([]); state.setIsJsonFormat(false);
-      state.setActiveStep(state.mode === 'summary' ? 3 : 1);
+      state.setQuestionText(''); 
+      state.setParsedQuestions([]); 
+      state.setIsJsonFormat(false);
+      state.setQuestionError(false);
+      
+      if (state.mode === 'summary') {
+        state.setActiveStep(4); // 생성 화면으로 이동
+        handlers.handleGenerateQuestion(); // 바로 문제 생성
+      } else if (state.mode === 'question' && state.questionSource === 'upload') {
+        state.setActiveStep(2); // 생성 화면으로 이동
+        handlers.handleGenerateQuestionFromFile(); // 파일에서 바로 문제 생성
+      } else if (state.mode === 'question' && state.questionSource === 'saved') {
+        state.setActiveStep(2); // 생성 화면으로 이동
+        handlers.handleGenerateQuestion(); // 요약본에서 바로 문제 생성
+      }
     }
   };
 
-  // 재시도 핸들러 수정 - 설정 단계로 돌아가도록
+  // 재시도 핸들러 수정 - 에러 타입에 따라 다른 단계로 이동
   const handleRetrySummary = () => { 
     state.setSummaryError(false); 
     state.setSummaryText(''); 
-    state.setActiveStep(1); 
+    // short_text 에러인 경우 파일 업로드 단계로, 그 외에는 설정 단계로
+    state.setActiveStep(state.summaryErrorType === 'short_text' ? 0 : 1);
+    // short_text 에러인 경우 파일도 초기화
+    if (state.summaryErrorType === 'short_text') {
+      state.setFile(null);
+      state.setFileName(null);
+    }
   };
   
   const handleRetryQuestion = () => { 
@@ -262,13 +321,48 @@ export default function UploadPage() {
     state.setQuestionText(''); 
     state.setParsedQuestions([]); 
     state.setIsJsonFormat(false); 
-    state.setActiveStep(state.mode === 'summary' ? 3 : 1); 
+    
+    // short_text 에러인 경우 파일 업로드 단계로, 그 외에는 설정 단계로
+    if (state.questionErrorType === 'short_text') {
+      state.setActiveStep(0);
+      state.setFile(null);
+      state.setFileName(null);
+    } else {
+      state.setActiveStep(state.mode === 'summary' ? 3 : 1);
+    }
   };
 
   // 기타 핸들러
-  const handleModeSelect = (selectedMode: 'summary' | 'question' | null) => { state.setMode(selectedMode); if (selectedMode === 'summary') state.setActiveStep(0); };
-  const handleQuestionSourceSelect = (source: 'upload' | 'saved' | null) => { state.setQuestionSource(source); if (source === 'upload') state.setActiveStep(0); else if (source === 'saved') { state.setIsSummarySelected(false); state.setActiveStep(0); } };
-  const handleSelectSavedSummary = (summary: SummaryItem) => { state.setSummaryText(summary.summary_text); state.setFileName(summary.file_name); state.setDbSummaryTypeKorean(summary.summary_type as DbSummaryPromptKey_Korean); state.setIsSummarySelected(true); state.setActiveStep(0); state.setOpenSavedSummariesDialog(false); };
+  const handleModeSelect = (selectedMode: 'summary' | 'question' | null) => { 
+    state.setMode(selectedMode); 
+    if (selectedMode === 'summary') {
+      state.setActiveStep(0);
+      state.setCompletedSteps(new Set());
+    }
+  };
+  
+  const handleQuestionSourceSelect = (source: 'upload' | 'saved' | null) => { 
+    state.setQuestionSource(source); 
+    if (source === 'upload') {
+      state.setActiveStep(0);
+      state.setCompletedSteps(new Set());
+    } else if (source === 'saved') { 
+      state.setIsSummarySelected(false); 
+      state.setActiveStep(0);
+      state.setCompletedSteps(new Set());
+    } 
+  };
+  
+  const handleSelectSavedSummary = (summary: SummaryItem) => { 
+    state.setSummaryText(summary.summary_text); 
+    state.setFileName(summary.file_name); 
+    state.setDbSummaryTypeKorean(summary.summary_type as DbSummaryPromptKey_Korean); 
+    state.setIsSummarySelected(true);
+    handlers.markStepCompleted(0); // 요약본 선택 완료 표시
+    state.setActiveStep(0); 
+    state.setOpenSavedSummariesDialog(false); 
+  };
+  
   const handleSave = (type: 'summary' | 'question') => { state.setSaveDialogType(type); state.setOpenSaveNameDialog(true); };
 
   // 단계 생성
@@ -290,49 +384,167 @@ export default function UploadPage() {
     if (state.mode === 'summary') {
       if (step === 0) return <FileUploadArea file={state.file} fileName={state.fileName} isDragging={state.isDragging} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop} onFileChange={handleFileUpload} />;
       if (step === 1) return (<Slide direction="left" in timeout={500}><Paper elevation={6} sx={{ p: 4, borderRadius: 4, background: "linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)" }}><Typography variant="h3" gutterBottom fontWeight={700} mb={4}>⚙️ 요약 설정</Typography><SummarySettings sumTab={state.sumTab} setSumTab={state.setSumTab} sumField={state.sumField} setSumField={state.setSumField} sumLevel={state.sumLevel} setSumLevel={state.setSumLevel} sumSentCount={state.sumSentCount} setSumSentCount={state.setSumSentCount} sumTopicCount={state.sumTopicCount} setSumTopicCount={state.setSumTopicCount} sumKeywordCount={state.sumKeywordCount} setSumKeywordCount={state.setSumKeywordCount} keywords={state.keywords} setKeywords={state.setKeywords} setAiSummaryType={state.setAiSummaryType} setDbSummaryTypeKorean={state.setDbSummaryTypeKorean} /></Paper></Slide>);
-      if (step === 2) return state.loadingSum ? <ParticleLoading message="문서를 요약하고 있습니다" /> : state.summaryError ? <ErrorDisplay errorMessage="요약 생성 중 오류가 발생했습니다." onRetry={handleRetrySummary} /> : state.summaryText ? <ResultDisplay type="summary" text={state.summaryText} fileName={state.fileName || "summary"} contentType={state.dbSummaryTypeKorean} onTextChange={state.setSummaryText} onSave={() => handleSave('summary')} onDownload={() => downloadAsPDF(state.summaryText, state.fileName || "summary", state.dbSummaryTypeKorean)} onRegenerate={() => handleRegenerate('summary')} /> : null;
+      if (step === 2) return state.loadingSum ? <ParticleLoading message="문서를 요약하고 있습니다" /> : state.summaryError ? <ErrorDisplay errorMessage={state.summaryErrorMessage} errorType={state.summaryErrorType} onRetry={handleRetrySummary} /> : (state.summaryText !== null && state.summaryText !== undefined) ? <ResultDisplay type="summary" text={state.summaryText} fileName={state.fileName || "summary"} contentType={state.dbSummaryTypeKorean} onTextChange={state.setSummaryText} onSave={() => handleSave('summary')} onDownload={() => downloadAsPDF(state.summaryText, state.fileName || "summary", state.dbSummaryTypeKorean)} onRegenerate={() => handleRegenerate('summary')} disabled={isGenerating} /> : null;
       if (step === 3) return (<Slide direction="left" in timeout={500}><Paper elevation={6} sx={{ p: 4, borderRadius: 4, background: "linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)" }}><Typography variant="h3" gutterBottom fontWeight={700} mb={4}>⚙️ 문제 설정</Typography><ProblemSettings qTab={state.qTab} setQTab={state.setQTab} qField={state.qField} setQField={state.setQField} qLevel={state.qLevel} setQLevel={state.setQLevel} qCount={state.qCount} setQCount={state.setQCount} optCount={state.optCount} setOptCount={state.setOptCount} blankCount={state.blankCount} setBlankCount={state.setBlankCount} optionFormat={state.optionFormat} setOptionFormat={state.setOptionFormat} summaryText={state.summaryText} openSummaryDialog={state.openSummaryDialog} setOpenSummaryDialog={state.setOpenSummaryDialog} openSavedSummariesDialog={() => {}} hasSummaryText={!!state.summaryText} showSavedSummaryButton={false} /></Paper></Slide>);
-      if (step === 4) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage="문제 생성 중 오류가 발생했습니다. 다시 시도해주세요." onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} /> : null;
+      if (step === 4) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage={state.questionErrorMessage} errorType={state.questionErrorType} onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} disabled={isGenerating} /> : null;
     }
     
     // 문제 모드 - 업로드
     if (state.mode === 'question' && state.questionSource === 'upload') {
       if (step === 0) return <FileUploadArea file={state.file} fileName={state.fileName} isDragging={state.isDragging} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop} onFileChange={handleFileUpload} />;
       if (step === 1) return (<Slide direction="left" in timeout={500}><Paper elevation={6} sx={{ p: 4, borderRadius: 4, background: "linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)" }}><Typography variant="h3" gutterBottom fontWeight={700} mb={4}>⚙️ 문제 설정</Typography><ProblemSettings qTab={state.qTab} setQTab={state.setQTab} qField={state.qField} setQField={state.setQField} qLevel={state.qLevel} setQLevel={state.setQLevel} qCount={state.qCount} setQCount={state.setQCount} optCount={state.optCount} setOptCount={state.setOptCount} blankCount={state.blankCount} setBlankCount={state.setBlankCount} optionFormat={state.optionFormat} setOptionFormat={state.setOptionFormat} summaryText="" openSummaryDialog={false} setOpenSummaryDialog={() => {}} openSavedSummariesDialog={() => {}} hasSummaryText={false} /></Paper></Slide>);
-      if (step === 2) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage="문제 생성 중 오류가 발생했습니다. 다른 설정으로 다시 시도해주세요." onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} /> : null;
+      if (step === 2) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage={state.questionErrorMessage} errorType={state.questionErrorType} onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} disabled={isGenerating} /> : null;
     }
     
     // 문제 모드 - 저장된 요약본
     if (state.mode === 'question' && state.questionSource === 'saved') {
       if (step === 0) return (<Fade in timeout={500}><Paper elevation={6} sx={{ p: 6, borderRadius: 4, background: "#ffffff", textAlign: "center" }}><Avatar sx={{ width: 120, height: 120, margin: "0 auto 24px", background: state.isSummarySelected ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" }}>{state.isSummarySelected ? <CheckCircle sx={{ fontSize: 60 }} /> : <LibraryBooks sx={{ fontSize: 60 }} />}</Avatar><Typography variant="h3" gutterBottom fontWeight={700}>{state.isSummarySelected ? "요약본 선택 완료!" : "요약본을 선택해주세요"}</Typography>{state.isSummarySelected ? (<><Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>선택한 요약본: {state.fileName || "untitled"}</Typography><Paper sx={{ p: 3, maxHeight: 300, overflow: "auto", bgcolor: "#f8fafc", borderRadius: 2, mb: 3, border: '1px solid', borderColor: 'divider' }}><Typography variant="body1" sx={{ whiteSpace: "pre-wrap", textAlign: "left" }}>{state.summaryText}</Typography></Paper><Button variant="outlined" startIcon={<LibraryBooks />} onClick={() => state.setOpenSavedSummariesDialog(true)} sx={{ borderRadius: 2, px: 3, borderWidth: 2, borderColor: "#10b981", color: "#10b981", "&:hover": { borderWidth: 2, borderColor: "#059669", bgcolor: "rgba(16, 185, 129, 0.04)" } }}>요약본 다시 선택하기</Button></>) : (<><Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>아래 버튼을 클릭하여 저장된 요약본을 선택하세요</Typography><Button variant="contained" size="large" startIcon={<LibraryBooks />} onClick={() => state.setOpenSavedSummariesDialog(true)} sx={{ borderRadius: 3, px: 5, py: 1.5, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", "&:hover": { background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)" } }}>요약본 선택하기</Button></>)}</Paper></Fade>);
       if (step === 1) return (<Slide direction="left" in timeout={500}><Paper elevation={6} sx={{ p: 4, borderRadius: 4, background: "linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)" }}><Typography variant="h3" gutterBottom fontWeight={700} mb={4}>⚙️ 문제 설정</Typography><ProblemSettings qTab={state.qTab} setQTab={state.setQTab} qField={state.qField} setQField={state.setQField} qLevel={state.qLevel} setQLevel={state.setQLevel} qCount={state.qCount} setQCount={state.setQCount} optCount={state.optCount} setOptCount={state.setOptCount} blankCount={state.blankCount} setBlankCount={state.setBlankCount} optionFormat={state.optionFormat} setOptionFormat={state.setOptionFormat} summaryText={state.summaryText} openSummaryDialog={state.openSummaryDialog} setOpenSummaryDialog={state.setOpenSummaryDialog} openSavedSummariesDialog={() => state.setOpenSavedSummariesDialog(true)} hasSummaryText={!!state.summaryText} /></Paper></Slide>);
-      if (step === 2) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage="문제 생성 중 오류가 발생했습니다. 다시 시도해주세요." onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} /> : null;
+      if (step === 2) return state.loadingQ ? <ParticleLoading message="문제를 생성하고 있습니다" /> : state.questionError ? <ErrorDisplay errorMessage={state.questionErrorMessage} errorType={state.questionErrorType} onRetry={handleRetryQuestion} /> : state.questionText && state.isJsonFormat ? <ResultDisplay type="question" text={state.questionText} isJsonFormat={state.isJsonFormat} parsedQuestions={state.parsedQuestions} fileName={state.fileName || "questions"} contentType={aiQuestionPromptKeys_Korean[state.qTab]} onSave={() => handleSave('question')} onDownload={() => downloadAsPDF(state.questionText, state.fileName || "questions", aiQuestionPromptKeys_Korean[state.qTab])} onRegenerate={() => handleRegenerate('question')} disabled={isGenerating} /> : null;
     }
     
     return null;
+  };
+
+  // 강제 네비게이션 핸들러
+  const handleForceNavigation = () => {
+    // 생성 중인 작업 중단
+    state.setLoadingSum(false);
+    state.setLoadingQ(false);
   };
 
   return (
     <>
       <Header />
       <PageNavigator />
+      
+      {/* 생성 중일 때 페이지 이탈 방지 */}
+      <NavigationBlocker 
+        when={isGenerating}
+        message={state.loadingSum ? "요약본 생성 중입니다. 페이지를 나가시겠습니까?" : "문제 생성 중입니다. 페이지를 나가시겠습니까?"}
+        onNavigationAttempt={handleForceNavigation}
+      />
+
       <Box sx={{ minHeight: "100vh", p: 4, pt: 12, background: "#ffffff" }}>
         <Container maxWidth="lg">
           {!state.mode ? <ModeSelection onSelectMode={handleModeSelect} /> : state.mode === 'question' && !state.questionSource ? <QuestionSourceSelection onSelectSource={handleQuestionSourceSelect} /> : (
             <>
               <Paper elevation={8} sx={{ p: 4, borderRadius: 4, mb: 4, background: "rgba(255, 255, 255, 0.9)", backdropFilter: "blur(10px)", border: "1px solid rgba(59, 130, 246, 0.1)" }}>
                 <Stepper activeStep={state.activeStep} alternativeLabel>
-                  {steps.map((label) => (
-                    <Step key={label}>
-                      <StepLabel sx={{ "& .MuiStepLabel-label": { fontSize: "1.1rem", fontWeight: 600 }, "& .MuiStepIcon-root": { color: "#93c5fd" }, "& .MuiStepIcon-root.Mui-active": { color: "#3b82f6" }, "& .MuiStepIcon-root.Mui-completed": { color: "#2563eb" } }}>{label}</StepLabel>
-                    </Step>
-                  ))}
+                  {steps.map((label, index) => {
+                    const isCompleted = state.completedSteps.has(index);
+                    // 생성 중이 아니고 완료된 단계만 클릭 가능
+                    const isClickable = !isGenerating && isCompleted;
+                    
+                    return (
+                      <Step 
+                        key={label}
+                        completed={isCompleted}
+                        sx={{
+                          cursor: isClickable ? 'pointer' : 'default',
+                          opacity: isGenerating && !isCompleted ? 0.5 : 1,
+                          '&:hover': isClickable ? {
+                            '& .MuiStepLabel-label': {
+                              color: '#2563eb',
+                            }
+                          } : {}
+                        }}
+                        onClick={() => handleStepClick(index)}
+                      >
+                        <StepLabel 
+                          StepIconComponent={isCompleted ? () => (
+                            <Box
+                              sx={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                bgcolor: '#10b981',
+                                color: 'white',
+                                transition: 'all 0.3s ease',
+                                ...(isClickable && {
+                                  '&:hover': {
+                                    transform: 'scale(1.1)',
+                                    bgcolor: '#059669',
+                                  }
+                                })
+                              }}
+                            >
+                              <Check sx={{ fontSize: 16 }} />
+                            </Box>
+                          ) : undefined}
+                          sx={{ 
+                            "& .MuiStepLabel-label": { 
+                              fontSize: "1.1rem", 
+                              fontWeight: 600,
+                              transition: 'color 0.3s ease',
+                            }, 
+                            "& .MuiStepIcon-root": { 
+                              color: "#93c5fd",
+                              transition: 'all 0.3s ease',
+                            }, 
+                            "& .MuiStepIcon-root.Mui-active": { 
+                              color: "#3b82f6",
+                              transform: 'scale(1.1)',
+                            }, 
+                            "& .MuiStepIcon-root.Mui-completed": { 
+                              color: "#10b981" 
+                            } 
+                          }}
+                        >
+                          {label}
+                        </StepLabel>
+                      </Step>
+                    );
+                  })}
                 </Stepper>
               </Paper>
               <Box sx={{ minHeight: 500, mb: 4 }}>{renderStep(state.activeStep)}</Box>
               <Stack direction="row" justifyContent="space-between" sx={{ px: 2 }}>
-                <Button disabled={!state.mode} onClick={handleBack} startIcon={<ArrowBack />} size="large" sx={{ borderRadius: 3, px: 5, py: 1.5, fontSize: "1.1rem", fontWeight: 600, color: "#3b82f6", "&:hover": { bgcolor: "rgba(59, 130, 246, 0.08)" } }}>이전</Button>
-                <Button variant="contained" onClick={handleNext} endIcon={<ArrowForward />} disabled={(state.mode === 'summary' && state.activeStep === 0 && !state.file) || (state.mode === 'summary' && state.activeStep === 2 && !state.summaryText) || (state.mode === 'summary' && state.activeStep === 4 && !state.questionText) || (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 0 && !state.file) || (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 2 && !state.questionText) || (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 0 && !state.isSummarySelected) || (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 2 && !state.questionText) || (state.mode === 'summary' && state.activeStep === steps.length - 1) || (state.mode === 'question' && state.activeStep === steps.length - 1)} size="large" sx={{ borderRadius: 3, px: 5, py: 1.5, fontSize: "1.1rem", fontWeight: 600, background: "linear-gradient(135deg, #3b82f6 0%, #0891b2 100%)", boxShadow: "0 4px 20px rgba(59, 130, 246, 0.4)", "&:hover": { background: "linear-gradient(135deg, #2563eb 0%, #0e7490 100%)", boxShadow: "0 6px 30px rgba(37, 99, 235, 0.5)" } }}>{(state.mode === 'summary' && state.activeStep === 1) ? "요약 생성" : (state.mode === 'summary' && state.activeStep === 3) ? "문제 생성" : (state.mode === 'question' && state.activeStep === steps.length - 2) ? "문제 생성" : "다음"}</Button>
+                <Button 
+                  disabled={!state.mode || isGenerating} 
+                  onClick={handleBack} 
+                  startIcon={<ArrowBack />} 
+                  size="large" 
+                  sx={{ 
+                    borderRadius: 3, 
+                    px: 5, 
+                    py: 1.5, 
+                    fontSize: "1.1rem", 
+                    fontWeight: 600, 
+                    color: "#3b82f6", 
+                    "&:hover": { bgcolor: "rgba(59, 130, 246, 0.08)" },
+                    "&.Mui-disabled": {
+                      color: "rgba(0, 0, 0, 0.26)",
+                    }
+                  }}
+                >
+                  이전
+                </Button>
+                <Button 
+                  variant="contained" 
+                  onClick={handleNext} 
+                  endIcon={<ArrowForward />} 
+                  disabled={(state.mode === 'summary' && state.activeStep === 0 && !state.file) || (state.mode === 'summary' && state.activeStep === 2 && !state.summaryText) || (state.mode === 'summary' && state.activeStep === 4 && !state.questionText) || (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 0 && !state.file) || (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 2 && !state.questionText) || (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 0 && !state.isSummarySelected) || (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 2 && !state.questionText) || (state.mode === 'summary' && state.activeStep === steps.length - 1) || (state.mode === 'question' && state.activeStep === steps.length - 1) || isGenerating} 
+                  size="large" 
+                  sx={{ 
+                    borderRadius: 3, 
+                    px: 5, 
+                    py: 1.5, 
+                    fontSize: "1.1rem", 
+                    fontWeight: 600, 
+                    background: "linear-gradient(135deg, #3b82f6 0%, #0891b2 100%)", 
+                    boxShadow: "0 4px 20px rgba(59, 130, 246, 0.4)", 
+                    "&:hover": { 
+                      background: "linear-gradient(135deg, #2563eb 0%, #0e7490 100%)", 
+                      boxShadow: "0 6px 30px rgba(37, 99, 235, 0.5)" 
+                    } 
+                  }}
+                >
+                  {(state.mode === 'summary' && state.activeStep === 1) ? "요약 생성" : (state.mode === 'summary' && state.activeStep === 3) ? "문제 생성" : (state.mode === 'question' && state.activeStep === steps.length - 2) ? "문제 생성" : "다음"}
+                </Button>
               </Stack>
             </>
           )}
@@ -353,7 +565,7 @@ export default function UploadPage() {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
+              gap: 1,
               minWidth: 400,
               bgcolor: '#E8F9EE',
               color: '#1a5d3a',
@@ -416,7 +628,7 @@ export default function UploadPage() {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
+              gap: 1,
               minWidth: 400,
               bgcolor: '#E8F9EE',
               color: '#1a5d3a',

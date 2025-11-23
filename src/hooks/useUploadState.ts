@@ -17,6 +17,7 @@ export const useUploadState = () => {
   const [mode, setMode] = useState<Mode>(null);
   const [questionSource, setQuestionSource] = useState<QuestionSource>(null);
   const [activeStep, setActiveStep] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -31,6 +32,8 @@ export const useUploadState = () => {
   const [summaryText, setSummaryText] = useState('');
   const [loadingSum, setLoadingSum] = useState(false);
   const [summaryError, setSummaryError] = useState(false);
+  const [summaryErrorType, setSummaryErrorType] = useState<'short_text' | 'invalid_file' | 'generation_failed' | 'unknown'>('unknown');
+  const [summaryErrorMessage, setSummaryErrorMessage] = useState('');
   const [sumTopicCount, setSumTopicCount] = useState(1);
   const [sumKeywordCount, setSumKeywordCount] = useState(3);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -45,6 +48,8 @@ export const useUploadState = () => {
   const [questionText, setQuestionText] = useState('');
   const [loadingQ, setLoadingQ] = useState(false);
   const [questionError, setQuestionError] = useState(false);
+  const [questionErrorType, setQuestionErrorType] = useState<'short_text' | 'invalid_file' | 'generation_failed' | 'unknown'>('unknown');
+  const [questionErrorMessage, setQuestionErrorMessage] = useState('');
   const [optionFormat, setOptionFormat] = useState('단답형');
   const [parsedQuestions, setParsedQuestions] = useState<Question[]>([]);
   const [isJsonFormat, setIsJsonFormat] = useState(false);
@@ -63,6 +68,7 @@ export const useUploadState = () => {
     setMode(null);
     setQuestionSource(null);
     setActiveStep(0);
+    setCompletedSteps(new Set());
     setFile(null);
     setFileName(null);
     setSummaryText('');
@@ -77,6 +83,7 @@ export const useUploadState = () => {
     mode, setMode,
     questionSource, setQuestionSource,
     activeStep, setActiveStep,
+    completedSteps, setCompletedSteps,
     file, setFile,
     fileName, setFileName,
     isDragging, setIsDragging,
@@ -91,6 +98,8 @@ export const useUploadState = () => {
     summaryText, setSummaryText,
     loadingSum, setLoadingSum,
     summaryError, setSummaryError,
+    summaryErrorType, setSummaryErrorType,
+    summaryErrorMessage, setSummaryErrorMessage,
     sumTopicCount, setSumTopicCount,
     sumKeywordCount, setSumKeywordCount,
     keywords, setKeywords,
@@ -105,6 +114,8 @@ export const useUploadState = () => {
     questionText, setQuestionText,
     loadingQ, setLoadingQ,
     questionError, setQuestionError,
+    questionErrorType, setQuestionErrorType,
+    questionErrorMessage, setQuestionErrorMessage,
     optionFormat, setOptionFormat,
     parsedQuestions, setParsedQuestions,
     isJsonFormat, setIsJsonFormat,

@@ -400,6 +400,10 @@ export const favoriteAPI = {
       `/favorites/folders/${userId}`
     ),
 
+  // 🆕 기본 폴더 생성 보장 (백엔드에서 중복 체크)
+  ensureDefaultFolder: (userId: number) =>
+    backendAPI.post('/favorites/folders/ensure-default', { userId }),
+
   // 즐겨찾기 폴더 생성
   createFolder: (data: { userId: number; folderName: string; description?: string }) =>
     backendAPI.post('/favorites/folders', data),
@@ -424,6 +428,10 @@ export const favoriteAPI = {
     backendAPI.delete(`/favorites/questions/${favoriteId}`, {
       params: { userId }  // Query parameter로 전달
     }),
+
+  // 🆕 여러 문제의 즐겨찾기 상태 일괄 조회
+  checkMultipleQuestions: (userId: number, questions: Array<{ questionId: number; questionIndex?: number }>) =>
+    backendAPI.post(`/favorites/check-multiple/${userId}`, { questions }),
 
   // 특정 폴더의 즐겨찾기 문제 목록
   getFolderQuestions: (userId: number, folderId: number) =>

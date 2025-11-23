@@ -15,7 +15,7 @@ import {
   IconButton,
   Stack,
 } from "@mui/material";
-import { Close } from "@mui/icons-material";
+import { Close, CheckCircleOutline, DeleteForever } from "@mui/icons-material";
 import Header from "../components/Header";
 import { useAuth } from "../contexts/AuthContext";
 import { summaryAPI, questionAPI } from "../services/api";
@@ -95,8 +95,8 @@ export default function Mypage() {
 
             return {
               id: s.selection_id,
-              name: s.file_name,  // 원본 파일명
-              displayName: s.summary_name || s.file_name,  // 요약본 이름 (없으면 파일명)
+              name: s.file_name, // 원본 파일명
+              displayName: s.summary_name || s.file_name, // 요약본 이름 (없으면 파일명)
               date: date.toLocaleDateString("ko-KR"),
               time: date.toLocaleTimeString("ko-KR", {
                 hour: "2-digit",
@@ -126,8 +126,8 @@ export default function Mypage() {
               const data = JSON.parse(q.question_text);
               return {
                 id: q.selection_id,
-                name: q.file_name,  // 원본 파일명
-                displayName: q.question_name || q.file_name,  // 문제 이름 (없으면 파일명)
+                name: q.file_name, // 원본 파일명
+                displayName: q.question_name || q.file_name, // 문제 이름 (없으면 파일명)
                 date: date.toLocaleDateString("ko-KR"),
                 time: date.toLocaleTimeString("ko-KR", {
                   hour: "2-digit",
@@ -155,8 +155,8 @@ export default function Mypage() {
             } catch {
               return {
                 id: q.selection_id,
-                name: q.file_name,  // 원본 파일명
-                displayName: q.question_name || q.file_name,  // 문제 이름 (없으면 파일명)
+                name: q.file_name, // 원본 파일명
+                displayName: q.question_name || q.file_name, // 문제 이름 (없으면 파일명)
                 date: date.toLocaleDateString("ko-KR"),
                 time: date.toLocaleTimeString("ko-KR", {
                   hour: "2-digit",
@@ -184,7 +184,7 @@ export default function Mypage() {
 
   // 다이얼로그 열기 함수
   const handleOpenDialog = (item: FileItem | QuestionItem) => {
-    setDialogTitle(item.displayName);  // displayName으로 변경
+    setDialogTitle(item.displayName); // displayName으로 변경
     setDialogText(item.text);
     setActiveViewItem(item);
     setDialogOpen(true);
@@ -237,27 +237,30 @@ export default function Mypage() {
   };
 
   // PDF 다운로드 함수
-  const handleDownloadPDF = async (item: FileItem | QuestionItem, skipLoading?: boolean) => {
+  const handleDownloadPDF = async (
+    item: FileItem | QuestionItem,
+    skipLoading?: boolean
+  ) => {
     try {
       if (!skipLoading) {
         setDownloadingPdf(true);
       }
-      if ('rawJson' in item && item.rawJson) {
+      if ("rawJson" in item && item.rawJson) {
         await downloadAsPDF(
           item.rawJson,
-          item.displayName || item.name || 'question',
-          (item as QuestionItem).displayType || '문제'
+          item.displayName || item.name || "question",
+          (item as QuestionItem).displayType || "문제"
         );
       } else {
         await downloadAsPDF(
           item.text,
-          item.displayName || item.name || 'summary',
-          (item as FileItem).summaryType || '요약'
+          item.displayName || item.name || "summary",
+          (item as FileItem).summaryType || "요약"
         );
       }
     } catch (error) {
-      console.error('PDF 다운로드 오류:', error);
-      alert('PDF 다운로드 중 오류가 발생했습니다.');
+      console.error("PDF 다운로드 오류:", error);
+      alert("PDF 다운로드 중 오류가 발생했습니다.");
     } finally {
       if (!skipLoading) {
         setDownloadingPdf(false);
@@ -273,12 +276,16 @@ export default function Mypage() {
   } | null>(null);
 
   // 이름 변경 다이얼로그 열기
-  const handleRenameClick = (item: FileItem | QuestionItem, type: "summary" | "question") => {
+  const handleRenameClick = (
+    item: FileItem | QuestionItem,
+    type: "summary" | "question"
+  ) => {
     setItemToRename({ item, type });
     setRenameDialogOpen(true);
   };
 
   // 이름 변경 확인 처리
+  // 🔄 이름 변경 확인 처리 - 로컬 상태만 업데이트
   const handleRenameConfirm = async (newName: string) => {
     if (!itemToRename) return;
 
@@ -310,16 +317,20 @@ export default function Mypage() {
           severity: "success",
         });
       }
-      
+
       // 활성 뷰 아이템이 변경된 아이템이면 업데이트
       if (activeViewItem && activeViewItem.id === item.id) {
         setActiveViewItem({ ...activeViewItem, displayName: newName });
         setDialogTitle(newName);
       }
+
+      // 🗑️ loadAllData() 호출 제거 - 로컬 상태 업데이트로 충분
     } catch (error: any) {
       setSnackbar({
         open: true,
-        message: error.response?.data?.message || `${type === "summary" ? "요약" : "문제"} 이름 변경에 실패했습니다.`,
+        message:
+          error.response?.data?.message ||
+          `${type === "summary" ? "요약" : "문제"} 이름 변경에 실패했습니다.`,
         severity: "error",
       });
       throw error;
@@ -340,29 +351,35 @@ export default function Mypage() {
     );
 
   return (
-    <Box sx={{ bgcolor: "background.paper", minHeight: "100vh", position: "relative" }}>
+    <Box
+      sx={{
+        bgcolor: "background.paper",
+        minHeight: "100vh",
+        position: "relative",
+      }}
+    >
       <Header />
       <PageNavigator />
-      
+
       {/* PDF 다운로드 중 로딩 오버레이 */}
       {downloadingPdf && (
         <Box
           sx={{
-            position: 'fixed',
+            position: "fixed",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
             zIndex: 1500,
           }}
         >
           <CircularProgress size={60} />
-          <Typography variant="h6" sx={{ mt: 2, fontWeight: 'medium' }}>
+          <Typography variant="h6" sx={{ mt: 2, fontWeight: "medium" }}>
             PDF 생성 중...
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -370,7 +387,7 @@ export default function Mypage() {
           </Typography>
         </Box>
       )}
-      
+
       <Box sx={{ pt: "60px", px: 4, pb: 6, maxWidth: 1200, mx: "auto" }}>
         <Typography
           variant="h2"
@@ -397,49 +414,50 @@ export default function Mypage() {
           마이페이지
         </Typography>
 
+        {/* 스낵바 - UploadPage.tsx 스타일 적용 */}
         <Snackbar
           open={snackbar.open}
           autoHideDuration={10000}
           onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
           anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          sx={{ mt: 8 }}
         >
-          <Alert
-            severity={snackbar.severity}
+          <Box
             sx={{
-              minWidth: 380,
-              maxWidth: 450,
-              borderRadius: 2.5,
-              boxShadow: snackbar.severity === 'success' 
-                ? '0 4px 20px rgba(46, 125, 50, 0.15)'
-                : '0 4px 20px rgba(211, 47, 47, 0.15)',
               display: "flex",
               alignItems: "center",
-              py: 1.5,
+              gap: 1,
+              
+              bgcolor: snackbar.severity === "success" ? "#E8F9EE" : "#FFEBEE",
+              color: snackbar.severity === "success" ? "#1a5d3a" : "#c62828",
+              borderRadius: 2,
+              boxShadow: 3,
               px: 2.5,
+              py: 1.5,
             }}
-            action={
-              <IconButton
-                size="small"
-                aria-label="close"
-                sx={{
-                  color: 'text.secondary',
-                  p: 0.5,
-                  '&:hover': {
-                    bgcolor: 'action.hover',
-                  },
-                }}
-                onClick={() => setSnackbar((prev) => ({ ...prev, open: false }))}
-              >
-                <Close fontSize="small" />
-              </IconButton>
-            }
           >
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Typography variant="body2" fontWeight={600}>
-                {snackbar.message}
-              </Typography>
-            </Box>
-          </Alert>
+            {snackbar.severity === "success" && (
+              <CheckCircleOutline sx={{ fontSize: 24, color: "#1a5d3a" }} />
+            )}
+            <Typography sx={{ fontSize: "1rem", fontWeight: 500, flexGrow: 1 }}>
+              {snackbar.message}
+            </Typography>
+            <IconButton
+              size="small"
+              onClick={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+              sx={{
+                color: snackbar.severity === "success" ? "#1a5d3a" : "#c62828",
+                "&:hover": {
+                  bgcolor:
+                    snackbar.severity === "success"
+                      ? "rgba(26, 93, 58, 0.1)"
+                      : "rgba(198, 40, 40, 0.1)",
+                },
+              }}
+            >
+              <Close fontSize="small" />
+            </IconButton>
+          </Box>
         </Snackbar>
 
         <FileListSection
@@ -476,7 +494,9 @@ export default function Mypage() {
         dialogText={dialogText}
         onDownload={handleDownloadPDF}
         onRename={(item) => {
-          const type = summaryItems.find(s => s.id === item.id) ? "summary" : "question";
+          const type = summaryItems.find((s) => s.id === item.id)
+            ? "summary"
+            : "question";
           handleRenameClick(item, type);
         }}
       />
@@ -493,39 +513,92 @@ export default function Mypage() {
         onConfirm={handleRenameConfirm}
       />
 
-      {/* 삭제 확인 다이얼로그 */}
+      {/* 🎨 삭제 확인 다이얼로그 - 개선된 디자인 */}
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        disableRestoreFocus
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            padding: 2,
+            minWidth: 420,
+          },
+        }}
       >
-        <DialogTitle id="alert-dialog-title">삭제 확인</DialogTitle>
-        <DialogContent>
-          <Typography>
+        <Box sx={{ textAlign: "center", pt: 2 }}>
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              bgcolor: "#FEE2E2",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px",
+            }}
+          >
+            <DeleteForever sx={{ fontSize: 32, color: "#DC2626" }} />
+          </Box>
+
+          <Typography
+            variant="h5"
+            fontWeight={700}
+            sx={{ mb: 1, color: "#1F2937" }}
+          >
+            {itemToDelete?.type === "summary" ? "요약" : "문제"} 삭제
+          </Typography>
+
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 0.5 }}>
             정말 이 {itemToDelete?.type === "summary" ? "요약" : "문제"}을(를)
             삭제하시겠습니까?
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            삭제한 항목은 복구할 수 없습니다.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
-          <Button
-            onClick={handleDeleteConfirmed}
-            variant="outlined"
+
+          <Typography
+            variant="body2"
             color="error"
+            sx={{ mt: 2, fontWeight: 500 }}
           >
-            삭제
+            삭제한 항목은 복구할 수 없습니다
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 2, mt: 3, px: 2, pb: 1 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={handleDeleteConfirmed}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              bgcolor: "#DC2626",
+              fontWeight: 600,
+              "&:hover": {
+                bgcolor: "#B91C1C",
+              },
+            }}
+          >
+            삭제하기
           </Button>
-          <Button 
-            onClick={() => setDeleteConfirmOpen(false)}
+          <Button
+            fullWidth
             variant="outlined"
+            onClick={() => setDeleteConfirmOpen(false)}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              borderColor: "#D1D5DB",
+              color: "#6B7280",
+              fontWeight: 600,
+              "&:hover": {
+                borderColor: "#9CA3AF",
+                bgcolor: "#F9FAFB",
+              },
+            }}
           >
             취소
           </Button>
-        </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );
