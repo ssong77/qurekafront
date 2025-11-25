@@ -215,7 +215,7 @@ export default function UploadPage() {
     state.setActiveStep(1);
   };
 
-  // 단계 클릭 핸들러 수정 - 생성 중일 때 차단
+  // 단계 클릭 핸들러 수정 - 클릭한 단계 자체와 이후의 완료 상태 제거
   const handleStepClick = (step: number) => {
     // 생성 중이면 단계 이동 불가
     if (isGenerating) {
@@ -223,6 +223,45 @@ export default function UploadPage() {
     }
     // 완료된 단계만 클릭 가능
     if (state.completedSteps.has(step)) {
+      // 클릭한 단계 자체와 그보다 큰 모든 단계의 완료 상태 제거
+      const newCompletedSteps = new Set(state.completedSteps);
+      for (let i = step; i < steps.length; i++) {
+        newCompletedSteps.delete(i);
+      }
+      state.setCompletedSteps(newCompletedSteps);
+
+      // 상태 초기화 (해당 단계 이후의 데이터 제거)
+      if (state.mode === 'summary') {
+        // 요약 생성 단계(2) 이하로 돌아가는 경우
+        if (step <= 2) {
+          state.setSummaryText('');
+          state.setSummaryError(false);
+        }
+        // 문제 생성 단계(4) 이하로 돌아가는 경우
+        if (step <= 4) {
+          state.setQuestionText('');
+          state.setParsedQuestions([]);
+          state.setIsJsonFormat(false);
+          state.setQuestionError(false);
+        }
+      } else if (state.mode === 'question' && state.questionSource === 'upload') {
+        // 문제 생성 단계(2) 이하로 돌아가는 경우
+        if (step <= 2) {
+          state.setQuestionText('');
+          state.setParsedQuestions([]);
+          state.setIsJsonFormat(false);
+          state.setQuestionError(false);
+        }
+      } else if (state.mode === 'question' && state.questionSource === 'saved') {
+        // 문제 생성 단계(2) 이하로 돌아가는 경우
+        if (step <= 2) {
+          state.setQuestionText('');
+          state.setParsedQuestions([]);
+          state.setIsJsonFormat(false);
+          state.setQuestionError(false);
+        }
+      }
+
       state.setActiveStep(step);
     }
   };
@@ -267,11 +306,41 @@ export default function UploadPage() {
       state.setSummaryText('');
       state.setQuestionText('');
       state.setIsSummarySelected(false);
+      state.setCompletedSteps(new Set()); // 모든 완료 상태 초기화
     } else {
-      if (state.mode === 'summary' && state.activeStep === 2) state.setSummaryText('');
-      if (state.mode === 'summary' && state.activeStep === 4) { state.setQuestionText(''); state.setParsedQuestions([]); state.setIsJsonFormat(false); }
-      if (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 2) { state.setQuestionText(''); state.setParsedQuestions([]); state.setIsJsonFormat(false); }
-      if (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 2) { state.setQuestionText(''); state.setParsedQuestions([]); state.setIsJsonFormat(false); }
+      // 현재 단계의 완료 상태 제거
+      const newCompletedSteps = new Set(state.completedSteps);
+      newCompletedSteps.delete(state.activeStep);
+      state.setCompletedSteps(newCompletedSteps);
+
+      // 각 모드별 상태 초기화
+      if (state.mode === 'summary' && state.activeStep === 2) {
+        state.setSummaryText('');
+        newCompletedSteps.delete(1); // 요약 설정도 미완료로 변경
+        state.setCompletedSteps(newCompletedSteps);
+      }
+      if (state.mode === 'summary' && state.activeStep === 4) { 
+        state.setQuestionText(''); 
+        state.setParsedQuestions([]); 
+        state.setIsJsonFormat(false);
+        newCompletedSteps.delete(3); // 문제 설정도 미완료로 변경
+        state.setCompletedSteps(newCompletedSteps);
+      }
+      if (state.mode === 'question' && state.questionSource === 'upload' && state.activeStep === 2) { 
+        state.setQuestionText(''); 
+        state.setParsedQuestions([]); 
+        state.setIsJsonFormat(false);
+        newCompletedSteps.delete(1); // 문제 설정도 미완료로 변경
+        state.setCompletedSteps(newCompletedSteps);
+      }
+      if (state.mode === 'question' && state.questionSource === 'saved' && state.activeStep === 2) { 
+        state.setQuestionText(''); 
+        state.setParsedQuestions([]); 
+        state.setIsJsonFormat(false);
+        newCompletedSteps.delete(1); // 문제 설정도 미완료로 변경
+        state.setCompletedSteps(newCompletedSteps);
+      }
+      
       state.setActiveStep((prev) => Math.max(prev - 1, 0));
     }
   };

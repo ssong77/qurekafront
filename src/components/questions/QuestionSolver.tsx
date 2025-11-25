@@ -11,10 +11,13 @@ import {
   CircularProgress,
   IconButton,
   Tooltip,
+  Dialog,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
+import FolderIcon from "@mui/icons-material/Folder";
+import CheckCircleOutline from "@mui/icons-material/CheckCircleOutline";
 import { QuestionItem } from "../../types/mypage";
 import MultipleChoiceQuestion from "./MultipleChoiceQuestion";
 import TrueFalseQuestion from "./TrueFalseQuestion";
@@ -262,6 +265,11 @@ export default function QuestionSolver({
 
   // 🆕 즐겨찾기 변경 추적
   const [favoriteChanged, setFavoriteChanged] = useState(false);
+
+  // 🆕 폴더 선택 다이얼로그 상태
+  const [folderSelectOpen, setFolderSelectOpen] = useState(false);
+  const [folders, setFolders] = useState<any[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
 
   const isFavoriteMode = !!favoritesList && favoritesList.length > 0;
   const [currentFavoriteIndex, setCurrentFavoriteIndex] = useState(() => {
@@ -737,37 +745,85 @@ export default function QuestionSolver({
       if (!user?.id || !parsedData) return;
 
       try {
-        // 현재 문제 세트의 모든 문제에 대해 즐겨찾기 상태 확인
-        const questions = parsedData.questions.map((_, index) => ({
-          questionId: currentQuestionItem.id,
-          questionIndex: index,
-        }));
-
-        const response = await favoriteAPI.checkMultipleQuestions(
-          user.id,
-          questions
-        );
-
-        // Map으로 변환하여 저장
-        const statusMap = new Map();
-        response.data.statuss.forEach((status: any) => {
-          const key = `${status.questionId}-${status.questionIndex}`;
-          statusMap.set(key, {
-            isFavorite: status.isFavorite,
-            favoriteId: status.favoriteId || null,
+        // 🔄 즐겨찾기 모드인 경우 현재 문제만 확인
+        if (isFavoriteMode) {
+          const response = await favoriteAPI.checkQuestion(
+            user.id,
+            currentQuestionItem.id,
+            currentQuestionIndex
+          );
+          
+          const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
+          setFavoriteStatusMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(key, {
+              isFavorite: response.data.isFavorite,
+              favoriteId: response.data.favoriteId || null,
+            });
+            return newMap;
           });
-        });
+        } else {
+          // 일반 모드 - 현재 문제 세트의 모든 문제에 대해 즐겨찾기 상태 확인
+          const questions = parsedData.questions.map((_, index) => ({
+            questionId: currentQuestionItem.id,
+            questionIndex: index,
+          }));
 
-        setFavoriteStatusMap(statusMap);
+          const response = await favoriteAPI.checkMultipleQuestions(
+            user.id,
+            questions
+          );
+
+          // Map으로 변환하여 저장
+          const statusMap = new Map();
+          response.data.statuss.forEach((status: any) => {
+            const key = `${status.questionId}-${status.questionIndex}`;
+            statusMap.set(key, {
+              isFavorite: status.isFavorite,
+              favoriteId: status.favoriteId || null,
+            });
+          });
+
+          setFavoriteStatusMap(statusMap);
+        }
       } catch (error) {
         console.error("즐겨찾기 상태 조회 오류:", error);
       }
     };
 
     loadFavoriteStatuses();
-  }, [user?.id, parsedData, currentQuestionItem.id]);
+  }, [user?.id, parsedData, currentQuestionItem.id, currentQuestionIndex, isFavoriteMode]);
 
-  // 🔄 현재 문제의 즐겨찾기 상태 가져오기 (캐시에서)
+  // 🔄 즐겨찾기 모드에서 문제 변경 시 즐겨찾기 상태 업데이트
+  useEffect(() => {
+    const updateFavoriteStatus = async () => {
+      if (!user?.id || !isFavoriteMode || !currentQuestionItem) return;
+
+      try {
+        const response = await favoriteAPI.checkQuestion(
+          user.id,
+          currentQuestionItem.id,
+          currentQuestionIndex
+        );
+
+        const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
+        setFavoriteStatusMap((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(key, {
+            isFavorite: response.data.isFavorite,
+            favoriteId: response.data.favoriteId || null,
+          });
+          return newMap;
+        });
+      } catch (error) {
+        console.error("즐겨찾기 상태 업데이트 오류:", error);
+      }
+    };
+
+    updateFavoriteStatus();
+  }, [user?.id, isFavoriteMode, currentQuestionItem, currentQuestionIndex]);
+
+  // 🆕 즐겨찾기 상태 가져오기
   const getCurrentFavoriteStatus = () => {
     const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
     return (
@@ -784,40 +840,67 @@ export default function QuestionSolver({
       return;
     }
 
-    setFavoriteLoading(true);
+    const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
+    const { isFavorite: currentIsFavorite, favoriteId: currentFavoriteId } =
+      favoriteStatusMap.get(key) || {
+        isFavorite: false,
+        favoriteId: null,
+      };
 
-    try {
-      const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
-
-      if (isFavorite && favoriteId) {
-        await favoriteAPI.removeQuestion(favoriteId, user.id);
-        // 캐시 업데이트
+    if (currentIsFavorite && currentFavoriteId) {
+      // 즐겨찾기 제거
+      setFavoriteLoading(true);
+      try {
+        await favoriteAPI.removeQuestion(currentFavoriteId, user.id);
         setFavoriteStatusMap((prev) => {
           const newMap = new Map(prev);
           newMap.set(key, { isFavorite: false, favoriteId: null });
           return newMap;
         });
-        // 🆕 변경 플래그 설정
         setFavoriteChanged(true);
-      } else {
-        const response = await favoriteAPI.addQuestion({
-          userId: user.id,
-          folderId: 1,
-          questionId: currentQuestionItem.id,
-          questionIndex: currentQuestionIndex,
-        });
-        // 캐시 업데이트
-        setFavoriteStatusMap((prev) => {
-          const newMap = new Map(prev);
-          newMap.set(key, {
-            isFavorite: true,
-            favoriteId: response.data.favoriteId,
-          });
-          return newMap;
-        });
-        // 🆕 변경 플래그 설정
-        setFavoriteChanged(true);
+      } catch (error: any) {
+        console.error("즐겨찾기 처리 오류:", error);
+        alert(
+          error.response?.data?.message ||
+            "즐겨찾기 처리 중 오류가 발생했습니다."
+        );
+      } finally {
+        setFavoriteLoading(false);
       }
+    } else {
+      // 🆕 즐겨찾기 추가 - 폴더 선택 다이얼로그 표시
+      setFolderSelectOpen(true);
+    }
+  };
+
+  // 🆕 폴더 선택 후 즐겨찾기 추가
+  const handleAddToFavorite = async () => {
+    if (!user?.id || !selectedFolderId) {
+      alert("폴더를 선택해주세요.");
+      return;
+    }
+
+    setFavoriteLoading(true);
+    setFolderSelectOpen(false);
+
+    try {
+      const response = await favoriteAPI.addQuestion({
+        userId: user.id,
+        folderId: selectedFolderId,
+        questionId: currentQuestionItem.id,
+        questionIndex: currentQuestionIndex,
+      });
+
+      const key = `${currentQuestionItem.id}-${currentQuestionIndex}`;
+      setFavoriteStatusMap((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(key, {
+          isFavorite: true,
+          favoriteId: response.data.favoriteId,
+        });
+        return newMap;
+      });
+      setFavoriteChanged(true);
     } catch (error: any) {
       console.error("즐겨찾기 처리 오류:", error);
       alert(
@@ -828,235 +911,196 @@ export default function QuestionSolver({
     }
   };
 
-  // 🆕 다시 시작하기
-  const handleRestart = useCallback(() => {
-    if (isFavoriteMode && favoritesList && favoritesList.length > 0) {
-      // 🔄 즐겨찾기 모드일 때: 첫 번째 즐겨찾기 항목으로 이동
-      const firstFavorite = favoritesList[0];
-
-      try {
-        const rawData = JSON.parse(firstFavorite.rawJson || "{}");
-        const parsedQuestion: ParsedQuestion = {
-          type: rawData.type || "multiple_choice",
-          questions: [],
-        };
-
-        if (rawData.questions && Array.isArray(rawData.questions)) {
-          parsedQuestion.questions = rawData.questions;
-          if (rawData.questions.length > 0) {
-            parsedQuestion.type =
-              rawData.questions[0].type ||
-              detectQuestionType(
-                rawData.questions[0],
-                firstFavorite.displayType
-              );
-          }
-        } else {
-          parsedQuestion.type =
-            rawData.type ||
-            detectQuestionType(rawData, firstFavorite.displayType);
-          parsedQuestion.questions = [rawData];
-        }
-
-        parsedQuestion.type = parsedQuestion.type.toLowerCase();
-        parsedQuestion.questions.forEach((q) =>
-          preprocessQuestion(q, parsedQuestion.type)
-        );
-
-        setCurrentQuestionItem(firstFavorite);
-        setParsedData(parsedQuestion);
-        setUserAnswers(Array(parsedQuestion.questions.length).fill(null));
-        setCurrentQuestionIndex(firstFavorite.questionIndex || 0);
-        setCurrentFavoriteIndex(0); // 🔄 첫 번째 인덱스로 설정
-        setShowResult(false);
-        setQuestionResults([]);
-        setShowSummary(false);
-        setRetryMode(false);
-        setWrongQuestionIndices([]);
-      } catch (error) {
-        console.error("문제 파싱 오류:", error);
-        alert("문제를 불러오는데 실패했습니다.");
-      }
-    } else {
-      // 일반 모드일 때
-      setCurrentQuestionIndex(0);
-      setUserAnswers(Array(parsedData!.questions.length).fill(null));
-      setShowResult(false);
-      setQuestionResults([]);
-      setShowSummary(false);
-      setRetryMode(false);
-      setWrongQuestionIndices([]);
-    }
-  }, [parsedData, isFavoriteMode, favoritesList]);
-
-  // 🆕 틀린 문제만 다시 풀기
-  const handleRetryWrong = useCallback(() => {
-    if (isFavoriteMode && favoritesList) {
-      // 🔄 즐겨찾기 모드: favoritesList의 인덱스 기반으로 처리
-      const wrongFavoriteIndices = questionResults
-        .filter((r) => !r.isCorrect)
-        .map((r) => {
-          // questionResults의 questionIndex는 각 문제 세트 내의 인덱스
-          // 실제 favoritesList에서의 인덱스를 찾아야 함
-          return favoritesList.findIndex(
-            (item) =>
-              item.id === currentQuestionItem.id &&
-              (item.questionIndex === r.questionIndex ||
-                (!item.questionIndex && r.questionIndex === 0))
+  // 🆕 폴더 목록 불러오기
+  useEffect(() => {
+    const loadFolders = async () => {
+      if (user?.id) {
+        try {
+          const response = await favoriteAPI.getFolders(user.id);
+          const sortedFolders = response.data.folders.sort((a, b) => {
+            if (a.folder_name === "기본 폴더") return -1;
+            if (b.folder_name === "기본 폴더") return 1;
+            return (
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
+            );
+          });
+          setFolders(sortedFolders);
+          // 기본 폴더를 초기값으로 설정
+          const defaultFolder = sortedFolders.find(
+            (f) => f.folder_name === "기본 폴더"
           );
-        })
-        .filter((index) => index !== -1)
-        .sort((a, b) => a - b);
-
-      if (wrongFavoriteIndices.length === 0) {
-        alert("틀린 문제가 없습니다.");
-        return;
-      }
-
-      // 첫 번째 틀린 문제로 이동
-      const firstWrongFavorite = favoritesList[wrongFavoriteIndices[0]];
-
-      try {
-        const rawData = JSON.parse(firstWrongFavorite.rawJson || "{}");
-        const parsedQuestion: ParsedQuestion = {
-          type: rawData.type || "multiple_choice",
-          questions: [],
-        };
-
-        if (rawData.questions && Array.isArray(rawData.questions)) {
-          parsedQuestion.questions = rawData.questions;
-          if (rawData.questions.length > 0) {
-            parsedQuestion.type =
-              rawData.questions[0].type ||
-              detectQuestionType(
-                rawData.questions[0],
-                firstWrongFavorite.displayType
-              );
+          if (defaultFolder) {
+            setSelectedFolderId(defaultFolder.folder_id);
           }
-        } else {
-          parsedQuestion.type =
-            rawData.type ||
-            detectQuestionType(rawData, firstWrongFavorite.displayType);
-          parsedQuestion.questions = [rawData];
+        } catch (error) {
+          console.error("폴더 목록 조회 오류:", error);
         }
-
-        parsedQuestion.type = parsedQuestion.type.toLowerCase();
-        parsedQuestion.questions.forEach((q) =>
-          preprocessQuestion(q, parsedQuestion.type)
-        );
-
-        setWrongQuestionIndices(wrongFavoriteIndices);
-        setRetryMode(true);
-        setCurrentQuestionItem(firstWrongFavorite);
-        setParsedData(parsedQuestion);
-        setUserAnswers(Array(parsedQuestion.questions.length).fill(null));
-        setCurrentQuestionIndex(firstWrongFavorite.questionIndex || 0);
-        setCurrentFavoriteIndex(wrongFavoriteIndices[0]);
-        setShowResult(false);
-        setShowSummary(false);
-      } catch (error) {
-        console.error("문제 파싱 오류:", error);
-        alert("문제를 불러오는데 실패했습니다.");
       }
-    } else {
-      // 일반 모드
-      const wrongIndices = questionResults
-        .filter((r) => !r.isCorrect)
-        .map((r) => r.questionIndex)
-        .sort((a, b) => a - b);
+    };
 
-      if (wrongIndices.length === 0) {
-        alert("틀린 문제가 없습니다.");
-        return;
-      }
+    loadFolders();
+  }, [user?.id]);
 
-      setWrongQuestionIndices(wrongIndices);
-      setRetryMode(true);
-      setCurrentQuestionIndex(wrongIndices[0]);
-      setShowResult(false);
-      setShowSummary(false);
+  const currentQuestionText = useMemo(() => {
+    if (!parsedData || !currentQuestion) return "";
 
-      // 틀린 문제의 답변만 초기화
-      setUserAnswers((prev) => {
-        const newAnswers = [...prev];
-        wrongIndices.forEach((index) => {
-          newAnswers[index] = null;
-        });
-        return newAnswers;
-      });
+    const type = parsedData.type.toLowerCase();
+
+    switch (type) {
+      case "multiple_choice":
+        return currentQuestion.question_text || "";
+
+      case "true_false":
+        return currentQuestion.question_text || "";
+
+      case "sequence":
+        return currentQuestion.question_text || "";
+
+      case "fill_in_the_blank":
+        return currentQuestion.question_text || "";
+
+      case "short_answer":
+        return currentQuestion.question_text || "";
+
+      case "descriptive":
+        return currentQuestion.question_text || "";
+
+      default:
+        return currentQuestion.question_text || "";
     }
-  }, [questionResults, isFavoriteMode, favoritesList, currentQuestionItem]);
-
-  // 🆕 특정 문제로 이동
-  const handleViewQuestion = useCallback((index: number) => {
-    setCurrentQuestionIndex(index);
-    setShowResult(false);
-    setShowSummary(false);
-  }, []);
+  }, [parsedData, currentQuestion]);
 
   // 🆕 마지막 문제인지 확인
   const isLastQuestion = useMemo(() => {
     if (isFavoriteMode && favoritesList) {
-      if (retryMode && wrongQuestionIndices.length > 0) {
-        // 재도전 모드: 마지막 틀린 문제인지 확인
-        return (
-          wrongQuestionIndices.indexOf(currentFavoriteIndex) ===
-          wrongQuestionIndices.length - 1
-        );
+      return retryMode && wrongQuestionIndices.length > 0
+        ? wrongQuestionIndices.indexOf(currentFavoriteIndex) === wrongQuestionIndices.length - 1
+        : currentFavoriteIndex === favoritesList.length - 1;
+    } else {
+      return retryMode && wrongQuestionIndices.length > 0
+        ? wrongQuestionIndices.findIndex(i => i === currentQuestionIndex) === wrongQuestionIndices.length - 1
+        : currentQuestionIndex === (parsedData?.questions.length || 0) - 1;
+    }
+  }, [isFavoriteMode, favoritesList, currentFavoriteIndex, currentQuestionIndex, retryMode, wrongQuestionIndices, parsedData]);
+
+  // 🆕 결과 요약 관련 핸들러 추가
+  const handleRestart = useCallback(() => {
+    // 처음부터 다시 시작
+    setQuestionResults([]);
+    setShowSummary(false);
+    setRetryMode(false);
+    setWrongQuestionIndices([]);
+    setCurrentQuestionIndex(0);
+    setCurrentFavoriteIndex(0);
+    setUserAnswers(Array(parsedData?.questions.length || 0).fill(null));
+    setShowResult(false);
+  }, [parsedData]);
+
+  const handleRetryWrong = useCallback(() => {
+    // 틀린 문제만 다시 풀기
+    const wrongIndices = questionResults
+      .filter(r => !r.isCorrect)
+      .map(r => r.questionIndex)
+      .sort((a, b) => a - b);
+
+    if (wrongIndices.length === 0) {
+      alert('틀린 문제가 없습니다!');
+      return;
+    }
+
+    setWrongQuestionIndices(wrongIndices);
+    setRetryMode(true);
+    setShowSummary(false);
+
+    // 첫 번째 틀린 문제로 이동
+    if (isFavoriteMode && favoritesList) {
+      const firstWrongIndex = wrongIndices[0];
+      const firstWrongQuestion = favoritesList[firstWrongIndex];
+
+      try {
+        const rawData = JSON.parse(firstWrongQuestion.rawJson || '{}');
+        const parsedQuestion: ParsedQuestion = {
+          type: rawData.type || 'multiple_choice',
+          questions: []
+        };
+
+        if (rawData.questions && Array.isArray(rawData.questions)) {
+          parsedQuestion.questions = rawData.questions;
+          if (rawData.questions.length > 0) {
+            parsedQuestion.type = rawData.questions[0].type || 
+              detectQuestionType(rawData.questions[0], firstWrongQuestion.displayType);
+          }
+        } else {
+          parsedQuestion.type = rawData.type || 
+            detectQuestionType(rawData, firstWrongQuestion.displayType);
+          parsedQuestion.questions = [rawData];
+        }
+
+        parsedQuestion.type = parsedQuestion.type.toLowerCase();
+        parsedQuestion.questions.forEach(q => preprocessQuestion(q, parsedQuestion.type));
+
+        setCurrentQuestionItem(firstWrongQuestion);
+        setParsedData(parsedQuestion);
+        setUserAnswers(Array(parsedQuestion.questions.length).fill(null));
+        setCurrentQuestionIndex(firstWrongQuestion.questionIndex || 0);
+        setCurrentFavoriteIndex(firstWrongIndex);
+        setShowResult(false);
+      } catch (error) {
+        console.error("문제 파싱 오류:", error);
+        alert('문제를 불러오는데 실패했습니다.');
       }
-      // 일반 모드: 마지막 즐겨찾기인지 확인
-      return currentFavoriteIndex === favoritesList.length - 1;
+    } else {
+      setCurrentQuestionIndex(wrongIndices[0]);
+      setUserAnswers(Array(parsedData?.questions.length || 0).fill(null));
+      setShowResult(false);
     }
-    if (retryMode) {
-      return (
-        wrongQuestionIndices.findIndex((i) => i === currentQuestionIndex) ===
-        wrongQuestionIndices.length - 1
-      );
+  }, [questionResults, isFavoriteMode, favoritesList, parsedData]);
+
+  const handleViewQuestion = useCallback((questionIndex: number) => {
+    // 특정 문제로 이동
+    setShowSummary(false);
+    setRetryMode(false);
+
+    if (isFavoriteMode && favoritesList) {
+      const targetQuestion = favoritesList[questionIndex];
+
+      try {
+        const rawData = JSON.parse(targetQuestion.rawJson || '{}');
+        const parsedQuestion: ParsedQuestion = {
+          type: rawData.type || 'multiple_choice',
+          questions: []
+        };
+
+        if (rawData.questions && Array.isArray(rawData.questions)) {
+          parsedQuestion.questions = rawData.questions;
+          if (rawData.questions.length > 0) {
+            parsedQuestion.type = rawData.questions[0].type || 
+              detectQuestionType(rawData.questions[0], targetQuestion.displayType);
+          }
+        } else {
+          parsedQuestion.type = rawData.type || 
+            detectQuestionType(rawData, targetQuestion.displayType);
+          parsedQuestion.questions = [rawData];
+        }
+
+        parsedQuestion.type = parsedQuestion.type.toLowerCase();
+        parsedQuestion.questions.forEach(q => preprocessQuestion(q, parsedQuestion.type));
+
+        setCurrentQuestionItem(targetQuestion);
+        setParsedData(parsedQuestion);
+        setCurrentQuestionIndex(targetQuestion.questionIndex || 0);
+        setCurrentFavoriteIndex(questionIndex);
+        setShowResult(true);
+      } catch (error) {
+        console.error("문제 파싱 오류:", error);
+        alert('문제를 불러오는데 실패했습니다.');
+      }
+    } else {
+      setCurrentQuestionIndex(questionIndex);
+      setShowResult(true);
     }
-    return currentQuestionIndex === (parsedData?.questions.length || 0) - 1;
-  }, [
-    isFavoriteMode,
-    favoritesList,
-    currentFavoriteIndex,
-    retryMode,
-    wrongQuestionIndices,
-    currentQuestionIndex,
-    parsedData,
-  ]);
-
-  if (parsingError) {
-    return (
-      <Box sx={{ mt: 4 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => onClose()} // 🔄 변경사항 없으므로 false 전달 불필요
-          sx={{ mb: 2 }}
-        >
-          돌아가기
-        </Button>
-        <Alert severity="error">{parsingError}</Alert>
-      </Box>
-    );
-  }
-
-  if (!parsedData) {
-    return (
-      <Box sx={{ mt: 4, textAlign: "center" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (!currentQuestion) {
-    return (
-      <Box sx={{ mt: 4 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={onClose} sx={{ mb: 2 }}>
-          돌아가기
-        </Button>
-        <Alert severity="error">문제 데이터가 유효하지 않습니다.</Alert>
-      </Box>
-    );
-  }
+  }, [isFavoriteMode, favoritesList]);
 
   // 🆕 결과 요약 화면
   if (showSummary) {
@@ -1076,7 +1120,7 @@ export default function QuestionSolver({
           totalQuestions={
             isFavoriteMode && favoritesList
               ? favoritesList.length
-              : parsedData.questions.length
+              : parsedData?.questions.length || 0
           }
           onRestart={handleRestart}
           onRetryWrong={handleRetryWrong}
@@ -1304,6 +1348,163 @@ export default function QuestionSolver({
           )}
         </Box>
       </Paper>
+
+      {/* 🆕 폴더 선택 다이얼로그 */}
+      <Dialog
+        open={folderSelectOpen}
+        onClose={() => setFolderSelectOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            padding: 2,
+          },
+        }}
+      >
+        <Box sx={{ textAlign: "center", pt: 2, px: 2 }}>
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              bgcolor: "#FEF3C7",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px",
+            }}
+          >
+            <StarIcon sx={{ fontSize: 32, color: "#F59E0B" }} />
+          </Box>
+
+          <Typography
+            variant="h5"
+            fontWeight={700}
+            sx={{ mb: 1, color: "#1F2937" }}
+          >
+            즐겨찾기 폴더 선택
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            이 문제를 저장할 폴더를 선택하세요
+          </Typography>
+        </Box>
+
+        <Box sx={{ px: 2, maxHeight: 300, overflow: "auto" }}>
+          {folders.map((folder) => (
+            <Paper
+              key={folder.folder_id}
+              elevation={0}
+              sx={{
+                p: 2,
+                mb: 1.5,
+                cursor: "pointer",
+                border: 2,
+                borderRadius: 2,
+                borderColor:
+                  selectedFolderId === folder.folder_id ? "#F59E0B" : "#E5E7EB",
+                bgcolor:
+                  selectedFolderId === folder.folder_id ? "#FEF3C7" : "#FFFFFF",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  borderColor:
+                    selectedFolderId === folder.folder_id
+                      ? "#F59E0B"
+                      : "#9CA3AF",
+                  bgcolor:
+                    selectedFolderId === folder.folder_id
+                      ? "#FEF3C7"
+                      : "#F9FAFB",
+                },
+              }}
+              onClick={() => setSelectedFolderId(folder.folder_id)}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 2,
+                    bgcolor:
+                      selectedFolderId === folder.folder_id
+                        ? "#FDE68A"
+                        : "#F3F4F6",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FolderIcon
+                    sx={{
+                      fontSize: 24,
+                      color:
+                        selectedFolderId === folder.folder_id
+                          ? "#D97706"
+                          : "#6B7280",
+                    }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    {folder.folder_name}
+                  </Typography>
+                  {folder.description && (
+                    <Typography variant="caption" color="text.secondary">
+                      {folder.description}
+                    </Typography>
+                  )}
+                </Box>
+                {selectedFolderId === folder.folder_id && (
+                  <CheckCircleOutline sx={{ color: "#F59E0B" }} />
+                )}
+              </Box>
+            </Paper>
+          ))}
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 2, mt: 3, px: 2, pb: 1 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={handleAddToFavorite}
+            disabled={!selectedFolderId}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              bgcolor: "#F59E0B",
+              fontWeight: 600,
+              "&:hover": {
+                bgcolor: "#D97706",
+              },
+              "&:disabled": {
+                bgcolor: "#E5E7EB",
+                color: "#9CA3AF",
+              },
+            }}
+          >
+            추가하기
+          </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => setFolderSelectOpen(false)}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              borderColor: "#D1D5DB",
+              color: "#6B7280",
+              fontWeight: 600,
+              "&:hover": {
+                borderColor: "#9CA3AF",
+                bgcolor: "#F9FAFB",
+              },
+            }}
+          >
+            취소
+          </Button>
+        </Box>
+      </Dialog>
     </Box>
   );
 }
